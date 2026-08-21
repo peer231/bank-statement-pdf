@@ -7,8 +7,11 @@ import pandas as pd
 import pytesseract
 from PIL import Image
 
-# If Tesseract is not in PATH, this fallback works with the normal Windows install.
-TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+)
+
+
 if __import__('os').path.exists(TESSERACT_PATH):
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
