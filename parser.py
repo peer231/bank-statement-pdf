@@ -12,8 +12,6 @@ pytesseract.pytesseract.tesseract_cmd = (
 )
 
 
-if __import__('os').path.exists(TESSERACT_PATH):
-    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 TRANSACTION_TYPES = [
     "Money Transfer",
