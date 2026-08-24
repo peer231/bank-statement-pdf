@@ -10,10 +10,6 @@ import pytesseract
 from PIL import Image
 
 
-# ============================================================
-# TESSERACT OCR CONFIGURATION
-# Works on Streamlit Cloud + Windows
-# ============================================================
 def configure_tesseract() -> str:
     # 1. Try Tesseract from PATH.
     # Streamlit Cloud should find /usr/bin/tesseract here.
@@ -50,9 +46,6 @@ def configure_tesseract() -> str:
 TESSERACT_PATH = configure_tesseract()
 
 
-# ============================================================
-# TRANSACTION TYPES
-# ============================================================
 TRANSACTION_TYPES = [
     "Money Transfer",
     "Raast Payment",
@@ -101,9 +94,6 @@ DETAIL_HEADER_WORDS = (
 )
 
 
-# ============================================================
-# HELPER FUNCTIONS
-# ============================================================
 def normalize_line(line: str) -> str:
     line = (line or "").replace("\t", " ")
     line = re.sub(r"\s+", " ", line)
@@ -165,9 +155,6 @@ def clean_description(text: str) -> str:
     return text.strip(" -:.,_")
 
 
-# ============================================================
-# PDF -> OCR
-# ============================================================
 def pdf_to_text(uploaded_file) -> str:
 
     pdf_bytes = uploaded_file.getvalue()
@@ -208,9 +195,7 @@ def pdf_to_text(uploaded_file) -> str:
     return "\n".join(pages)
 
 
-# ============================================================
-# PARSE TRANSACTION HEADER
-# ============================================================
+
 def parse_header(line: str):
 
     date_match = DATE_PATTERN.search(line)
@@ -294,9 +279,6 @@ def parse_header(line: str):
     receipts = ""
     payments = ""
 
-    # --------------------------------------------------------
-    # Balance movement is authoritative.
-    # --------------------------------------------------------
     if (
         opening_n is not None
         and closing_n is not None
@@ -315,9 +297,6 @@ def parse_header(line: str):
 
             payments = f"{abs(delta):.2f}"
 
-    # --------------------------------------------------------
-    # Fallback when OCR misses a balance.
-    # --------------------------------------------------------
     elif amount_n is not None:
 
         if len(values) > 1:
@@ -351,9 +330,6 @@ def parse_header(line: str):
     }
 
 
-# ============================================================
-# DETAIL HEADER
-# ============================================================
 def is_detail_header(line: str) -> bool:
 
     low = line.lower()
@@ -371,9 +347,7 @@ def is_detail_header(line: str) -> bool:
     )
 
 
-# ============================================================
-# TRANSACTION DETAIL
-# ============================================================
+
 def parse_detail_line(
     line: str,
     current: dict,
@@ -430,9 +404,6 @@ def parse_detail_line(
     return True
 
 
-# ============================================================
-# MAIN PARSER
-# ============================================================
 def parse_transactions(
     text: str,
 ) -> pd.DataFrame:
@@ -471,9 +442,7 @@ def parse_transactions(
         ):
             continue
 
-        # ----------------------------------------------------
-        # New transaction
-        # ----------------------------------------------------
+      
         transaction = parse_header(
             line
         )
@@ -494,18 +463,12 @@ def parse_transactions(
         if current is None:
             continue
 
-        # ----------------------------------------------------
-        # Detail header
-        # ----------------------------------------------------
         if is_detail_header(line):
 
             waiting_for_detail = True
 
             continue
 
-        # ----------------------------------------------------
-        # Detail data
-        # ----------------------------------------------------
         if waiting_for_detail:
 
             if parse_detail_line(
@@ -517,9 +480,7 @@ def parse_transactions(
 
                 continue
 
-        # ----------------------------------------------------
-        # Prevent OCR garbage
-        # ----------------------------------------------------
+       
         if ID_PATTERN.fullmatch(
             line
         ):
@@ -597,9 +558,6 @@ def parse_transactions(
     )
 
 
-# ============================================================
-# FUNCTION USED BY app.py
-# ============================================================
 def extract_transactions(
     uploaded_file,
 ) -> pd.DataFrame:
