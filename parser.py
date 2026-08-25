@@ -10,13 +10,23 @@ from PIL import Image
 # ============================================================
 # TESSERACT CONFIGURATION
 # ============================================================
+# Streamlit Cloud / Linux
+if os.path.exists("/usr/bin/tesseract"):
+    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
-# Local Windows installation.
-# Streamlit Cloud normally does not have this Windows path,
-# but keeping it here will not affect the current local setup.
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+# Windows local computer
+elif os.path.exists(r"C:\Program Files\Tesseract-OCR\tesseract.exe"):
+    pytesseract.pytesseract.tesseract_cmd = (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    )
+
+elif os.path.exists(
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
+):
+    pytesseract.pytesseract.tesseract_cmd = (
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
+    )
+
 
 
 # ============================================================
