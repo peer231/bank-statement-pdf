@@ -1,5 +1,6 @@
 import io
 import re
+import shutil
 
 import fitz
 import pandas as pd
@@ -10,23 +11,11 @@ from PIL import Image
 # ============================================================
 # TESSERACT CONFIGURATION
 # ============================================================
-# Streamlit Cloud / Linux
-if os.path.exists("/usr/bin/tesseract"):
-    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
-# Windows local computer
-elif os.path.exists(r"C:\Program Files\Tesseract-OCR\tesseract.exe"):
-    pytesseract.pytesseract.tesseract_cmd = (
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    )
+tesseract_path = shutil.which("tesseract")
 
-elif os.path.exists(
-    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
-):
-    pytesseract.pytesseract.tesseract_cmd = (
-        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
-    )
-
+if tesseract_path:
+    pytesseract.pytesseract.tesseract_cmd = tesseract_path
 
 
 # ============================================================
