@@ -11,7 +11,10 @@ from PIL import Image
 
 # ============================================================
 # TESSERACT CONFIGURATION
-# Works on Streamlit Cloud + Windows
+# ============================================================
+# Works locally on Windows if Tesseract is installed.
+# On Streamlit Cloud, Tesseract must be installed through
+# packages.txt / apt packages.
 # ============================================================
 
 tesseract_path = shutil.which("tesseract")
@@ -62,7 +65,9 @@ MONEY_PATTERN = re.compile(
     re.X,
 )
 
-ID_PATTERN = re.compile(r"\b\d{8,15}\b")
+ID_PATTERN = re.compile(
+    r"\b\d{8,15}\b"
+)
 
 TIME_PATTERN = re.compile(
     r"\b\d{1,2}:\d{2}\s*(?:AM|PM)?\b",
@@ -96,17 +101,32 @@ COLUMNS = [
 # ============================================================
 
 def normalize_line(line: str) -> str:
+    """
+    Normalize OCR text line.
+    """
+
     if not line:
         return ""
 
+    line = str(line)
+
     line = line.replace("\t", " ")
     line = line.replace("\r", " ")
-    line = re.sub(r"\s+", " ", line)
+
+    line = re.sub(
+        r"\s+",
+        " ",
+        line,
+    )
 
     return line.strip()
 
 
 def clean_money(value: str) -> str:
+    """
+    Convert money text to clean numeric string.
+    """
+
     if value is None:
         return ""
 
@@ -123,6 +143,10 @@ def clean_money(value: str) -> str:
 
 
 def money_float(value: str) -> Optional[float]:
+    """
+    Convert money string to float.
+    """
+
     if value is None:
         return None
 
@@ -133,7 +157,11 @@ def money_float(value: str) -> Optional[float]:
 
     try:
         return float(value)
-    except (ValueError, TypeError):
+
+    except (
+        ValueError,
+        TypeError,
+    ):
         return None
 
 
@@ -141,12 +169,20 @@ def format_money(value) -> str:
     """
     Always return money as 0.00 format.
     """
-    if value is None or value == "":
+
+    if value is None:
+        return ""
+
+    if value == "":
         return ""
 
     try:
         return f"{float(value):.2f}"
-    except (ValueError, TypeError):
+
+    except (
+        ValueError,
+        TypeError,
+    ):
         return ""
 
 
@@ -154,7 +190,9 @@ def format_money(value) -> str:
 # TRANSACTION TYPE
 # ============================================================
 
-def find_transaction_type(line: str) -> Optional[str]:
+def find_transaction_type(
+    line: str,
+) -> Optional[str]:
 
     low = line.lower()
 
@@ -170,7 +208,12 @@ def find_transaction_type(line: str) -> Optional[str]:
 # DESCRIPTION CLEANER
 # ============================================================
 
-def clean_description(text: str) -> str:
+def clean_description(
+    text: str,
+) -> str:
+    """
+    Clean OCR garbage from transaction description.
+    """
 
     if not text:
         return ""
@@ -179,15 +222,21 @@ def clean_description(text: str) -> str:
     # Remove time
     # --------------------------------------------------------
 
-    text = TIME_PATTERN.sub("", text)
+    text = TIME_PATTERN.sub(
+        "",
+        text,
+    )
 
     # --------------------------------------------------------
-    # Remove transaction detail headers
+    # Remove detail table headers
     # --------------------------------------------------------
 
     header_patterns = [
         r"\bTransaction\s*(?:ID|1D)?\b",
         r"\bTransacton\s*(?:ID|1D)?\b",
+        r"\bTureen\b",
+        r"\bTorecion\b",
+        r"\bTermin\b",
         r"\bAmount\b",
         r"\bTax\b",
         r"\bFees?\b",
@@ -214,6 +263,7 @@ def clean_description(text: str) -> str:
         r"Karachi\s*,?\s*Pakistan.*",
         r"Email\s*:\s*info@easypaisa\.com\.pk.*",
         r"info@easypaisa\.com\.pk.*",
+        r"easypaisa\.com\.pk.*",
     ]
 
     for pattern in footer_patterns:
@@ -226,7 +276,7 @@ def clean_description(text: str) -> str:
         )
 
     # --------------------------------------------------------
-    # Remove obvious transaction IDs
+    # Remove transaction IDs from description
     # --------------------------------------------------------
 
     text = re.sub(
@@ -236,9 +286,10 @@ def clean_description(text: str) -> str:
     )
 
     # --------------------------------------------------------
-    # Remove money values from description
+    # Remove balance money values from description
     #
     # Example:
+    #
     # 31,356.81 (6,400.00) - 37,756.81
     # --------------------------------------------------------
 
@@ -249,7 +300,7 @@ def clean_description(text: str) -> str:
     )
 
     # --------------------------------------------------------
-    # Remove random OCR symbols
+    # Remove obvious OCR symbols
     # --------------------------------------------------------
 
     text = re.sub(
@@ -268,14 +319,39 @@ def clean_description(text: str) -> str:
         text,
     )
 
-    return text.strip(" -:.,_")
+    return text.strip(
+        " -:.,_"
+    )
 
 
 # ============================================================
 # PDF -> OCR TEXT
 # ============================================================
 
-def pdf_to_text(uploaded_file) -> str:
+def pdf_to_text(
+    uploaded_file,
+) -> str:
+    """
+    Convert uploaded PDF pages into OCR text.
+
+    Tesseract path is detected automatically.
+    """
+
+    # --------------------------------------------------------
+    # Check Tesseract
+    # --------------------------------------------------------
+
+    if not shutil.which("tesseract"):
+
+        raise RuntimeError(
+            "Tesseract OCR is not installed. "
+            "Please install Tesseract locally or add "
+            "'tesseract-ocr' to packages.txt for Streamlit Cloud."
+        )
+
+    # --------------------------------------------------------
+    # Read PDF
+    # --------------------------------------------------------
 
     pdf_bytes = uploaded_file.getvalue()
 
@@ -286,9 +362,12 @@ def pdf_to_text(uploaded_file) -> str:
 
     pages = []
 
+    # --------------------------------------------------------
+    # OCR each page
+    # --------------------------------------------------------
+
     for page in document:
 
-        # High resolution OCR
         pix = page.get_pixmap(
             matrix=fitz.Matrix(3, 3),
             alpha=False,
@@ -316,12 +395,19 @@ def pdf_to_text(uploaded_file) -> str:
 # FIND MONEY VALUES
 # ============================================================
 
-def find_money_values(text: str):
+def find_money_values(
+    text: str,
+):
+    """
+    Find money values in a transaction line.
+    """
 
     if not text:
         return []
 
-    values = MONEY_PATTERN.findall(text)
+    values = MONEY_PATTERN.findall(
+        text
+    )
 
     cleaned = []
 
@@ -338,21 +424,41 @@ def find_money_values(text: str):
 
 
 # ============================================================
-# EXTRACT BALANCES FROM TRANSACTION LINE
+# EXTRACT BALANCES
 # ============================================================
 
-def extract_balances(line: str):
+def extract_balances(
+    line: str,
+):
+    """
+    Extract:
 
-    values = find_money_values(line)
+    Opening Balance
+    Receipts
+    Payments
+    Closing Balance
+
+    from EasyPaisa transaction line.
+    """
+
+    values = find_money_values(
+        line
+    )
 
     if len(values) < 2:
-        return "", "", "", ""
+
+        return (
+            "",
+            "",
+            "",
+            "",
+        )
 
     # --------------------------------------------------------
-    # Most EasyPaisa rows follow:
+    # Typical format:
     #
     # Opening
-    # Transaction amount
+    # Transaction Amount
     # Closing
     #
     # Example:
@@ -360,8 +466,13 @@ def extract_balances(line: str):
     # 31,356.81 (6,400.00) 37,756.81
     # --------------------------------------------------------
 
-    opening = clean_money(values[0])
-    closing = clean_money(values[-1])
+    opening = clean_money(
+        values[0]
+    )
+
+    closing = clean_money(
+        values[-1]
+    )
 
     middle = values[1:-1]
 
@@ -369,17 +480,23 @@ def extract_balances(line: str):
 
     if middle:
 
-        # Prefer the first middle value
-        amount = clean_money(middle[0])
+        amount = clean_money(
+            middle[0]
+        )
 
-    opening_n = money_float(opening)
-    closing_n = money_float(closing)
+    opening_n = money_float(
+        opening
+    )
+
+    closing_n = money_float(
+        closing
+    )
 
     receipts = ""
     payments = ""
 
     # --------------------------------------------------------
-    # Determine Receipts / Payments from balance movement
+    # Determine receipt/payment from balance movement
     # --------------------------------------------------------
 
     if (
@@ -405,16 +522,17 @@ def extract_balances(line: str):
             )
 
     # --------------------------------------------------------
-    # Fallback using transaction amount
+    # Fallback
     # --------------------------------------------------------
 
     if not receipts and not payments:
 
-        amount_n = money_float(amount)
+        amount_n = money_float(
+            amount
+        )
 
         if amount_n is not None:
 
-            # Parentheses generally indicate payment
             if (
                 len(values) > 1
                 and "(" in values[1]
@@ -442,15 +560,22 @@ def extract_balances(line: str):
 # PARSE TRANSACTION HEADER
 # ============================================================
 
-def parse_header(line: str):
+def parse_header(
+    line: str,
+):
 
-    date_match = DATE_PATTERN.search(line)
+    date_match = DATE_PATTERN.search(
+        line
+    )
 
     transaction_type = find_transaction_type(
         line
     )
 
-    if not date_match or not transaction_type:
+    if (
+        not date_match
+        or not transaction_type
+    ):
         return None
 
     month = date_match.group(1)
@@ -458,10 +583,17 @@ def parse_header(line: str):
     year = date_match.group(3)
 
     if len(year) == 2:
+
         year = "20" + year
 
+    # --------------------------------------------------------
+    # Date format
+    # --------------------------------------------------------
+
     date = (
-        f"{int(day)}-{month[:3].title()}-{year[-2:]}"
+        f"{int(day)}-"
+        f"{month[:3].title()}-"
+        f"{year[-2:]}"
     )
 
     # --------------------------------------------------------
@@ -516,12 +648,26 @@ def parse_header(line: str):
         amount = payments
 
     # --------------------------------------------------------
-    # Clean description
+    # Description
     # --------------------------------------------------------
 
     description = clean_description(
         remaining
     )
+
+    # ========================================================
+    # IMPORTANT TAX RULE
+    #
+    # Do NOT try to calculate Tax from:
+    #
+    # Amount
+    # Opening Balance
+    # Closing Balance
+    # Receipts
+    # Payments
+    #
+    # Tax starts at 0.00.
+    # ========================================================
 
     return {
         "Date": date,
@@ -533,6 +679,8 @@ def parse_header(line: str):
         "Closing Balance": format_money(closing),
         "Transaction ID": "",
         "Amount": amount,
+
+        # IMPORTANT
         "Tax": "0.00",
         "Fees": "0.00",
         "Discount": "0.00",
@@ -544,13 +692,18 @@ def parse_header(line: str):
 # DETAIL HEADER DETECTION
 # ============================================================
 
-def is_detail_header(line: str) -> bool:
+def is_detail_header(
+    line: str,
+) -> bool:
 
     low = line.lower()
 
     has_transaction = (
         "transaction" in low
         or "transacton" in low
+        or "tureen" in low
+        or "torecion" in low
+        or "termin" in low
     )
 
     has_amount = (
@@ -561,11 +714,26 @@ def is_detail_header(line: str) -> bool:
         "tax" in low
     )
 
+    has_fees = (
+        "fees" in low
+    )
+
+    has_discount = (
+        "discount" in low
+    )
+
+    has_total = (
+        "total" in low
+    )
+
     return (
         has_transaction
         and (
             has_amount
             or has_tax
+            or has_fees
+            or has_discount
+            or has_total
         )
     )
 
@@ -578,12 +746,23 @@ def parse_detail_line(
     line: str,
     current: dict,
 ) -> bool:
+    """
+    Extract only Transaction ID from detail line.
+
+    IMPORTANT:
+    We intentionally DO NOT extract Tax/Fees/Discount/Total
+    from OCR numbers.
+
+    This prevents Amount or other numbers from accidentally
+    becoming Tax.
+    """
 
     ids = ID_PATTERN.findall(
         line
     )
 
     if not ids:
+
         return False
 
     # --------------------------------------------------------
@@ -597,61 +776,8 @@ def parse_detail_line(
     )
 
     # --------------------------------------------------------
-    # Everything after transaction ID
-    # --------------------------------------------------------
-
-    id_position = line.find(
-        transaction_id
-    )
-
-    tail = line[
-        id_position
-        + len(transaction_id):
-    ].strip()
-
-    # --------------------------------------------------------
-    # Find decimal numbers
-    # --------------------------------------------------------
-
-    decimal_values = re.findall(
-        r"\(?\s*[+-]?\d[\d,]*\.\d{2}\s*\)?",
-        tail,
-    )
-
-    fields = [
-        clean_money(value)
-        for value in decimal_values
-    ]
-
-    # --------------------------------------------------------
-    # IMPORTANT:
-    #
-    # Only use detail values when they really exist.
-    #
-    # Never use Transaction Amount as Tax.
-    # --------------------------------------------------------
-
-    if len(fields) >= 4:
-
-        current["Tax"] = format_money(
-            fields[0]
-        )
-
-        current["Fees"] = format_money(
-            fields[1]
-        )
-
-        current["Discount"] = format_money(
-            fields[2]
-        )
-
-        current["Total"] = format_money(
-            fields[3]
-        )
-
-    # --------------------------------------------------------
-    # If no detail values were detected,
-    # keep Tax/Fees/Discount/Total = 0.00
+    # Amount must come from balance movement,
+    # NOT from detail OCR.
     # --------------------------------------------------------
 
     if current.get("Receipts"):
@@ -666,16 +792,39 @@ def parse_detail_line(
             current["Payments"]
         )
 
+    # ========================================================
+    # IMPORTANT
+    #
+    # NEVER DO THIS:
+    #
+    # fields[0] -> Tax
+    #
+    # because OCR order is unreliable.
+    #
+    # Tax remains 0.00.
+    # Fees remains 0.00.
+    # Discount remains 0.00.
+    # Total remains 0.00.
+    # ========================================================
+
+    current["Tax"] = "0.00"
+    current["Fees"] = "0.00"
+    current["Discount"] = "0.00"
+    current["Total"] = "0.00"
+
     return True
 
 
 # ============================================================
-# CLEAN DETAIL GARBAGE
+# CLEAN DETAIL / HEADER GARBAGE
 # ============================================================
 
-def should_ignore_line(line: str) -> bool:
+def should_ignore_line(
+    line: str,
+) -> bool:
 
     if not line:
+
         return True
 
     upper = line.upper()
@@ -695,6 +844,7 @@ def should_ignore_line(line: str) -> bool:
     for word in ignored:
 
         if word in upper:
+
             return True
 
     return False
@@ -714,6 +864,10 @@ def parse_transactions(
 
     waiting_for_detail = False
 
+    # ========================================================
+    # PROCESS OCR LINES
+    # ========================================================
+
     for raw_line in text.splitlines():
 
         line = normalize_line(
@@ -721,13 +875,21 @@ def parse_transactions(
         )
 
         if not line:
-            continue
 
-        if should_ignore_line(line):
             continue
 
         # ----------------------------------------------------
-        # New transaction
+        # Ignore statement metadata
+        # ----------------------------------------------------
+
+        if should_ignore_line(
+            line
+        ):
+
+            continue
+
+        # ----------------------------------------------------
+        # Detect new transaction
         # ----------------------------------------------------
 
         transaction = parse_header(
@@ -736,6 +898,7 @@ def parse_transactions(
 
         if transaction:
 
+            # Save previous transaction
             if current:
 
                 records.append(
@@ -749,17 +912,20 @@ def parse_transactions(
             continue
 
         # ----------------------------------------------------
-        # No current transaction
+        # No active transaction
         # ----------------------------------------------------
 
         if current is None:
+
             continue
 
         # ----------------------------------------------------
         # Detail header
         # ----------------------------------------------------
 
-        if is_detail_header(line):
+        if is_detail_header(
+            line
+        ):
 
             waiting_for_detail = True
 
@@ -781,7 +947,7 @@ def parse_transactions(
                 continue
 
         # ----------------------------------------------------
-        # Don't add pure numeric garbage
+        # Ignore pure numeric lines
         # ----------------------------------------------------
 
         if re.fullmatch(
@@ -792,15 +958,17 @@ def parse_transactions(
             continue
 
         # ----------------------------------------------------
-        # Don't add detail headers
+        # Ignore detail headers
         # ----------------------------------------------------
 
-        if is_detail_header(line):
+        if is_detail_header(
+            line
+        ):
 
             continue
 
         # ----------------------------------------------------
-        # Clean additional description
+        # Clean extra description
         # ----------------------------------------------------
 
         extra = clean_description(
@@ -808,22 +976,11 @@ def parse_transactions(
         )
 
         if not extra:
+
             continue
 
         # ----------------------------------------------------
-        # Avoid duplicate description
-        # ----------------------------------------------------
-
-        existing = current.get(
-            "Description",
-            "",
-        )
-
-        if extra.lower() in existing.lower():
-            continue
-
-        # ----------------------------------------------------
-        # Avoid footer garbage
+        # Bad OCR fragments
         # ----------------------------------------------------
 
         bad_fragments = [
@@ -842,7 +999,23 @@ def parse_transactions(
             continue
 
         # ----------------------------------------------------
-        # Append useful description
+        # Avoid duplicate description
+        # ----------------------------------------------------
+
+        existing = current.get(
+            "Description",
+            "",
+        )
+
+        if (
+            extra.lower()
+            in existing.lower()
+        ):
+
+            continue
+
+        # ----------------------------------------------------
+        # Append description
         # ----------------------------------------------------
 
         if existing:
@@ -857,9 +1030,9 @@ def parse_transactions(
 
             current["Description"] = extra
 
-    # --------------------------------------------------------
-    # Add final transaction
-    # --------------------------------------------------------
+    # ========================================================
+    # SAVE FINAL TRANSACTION
+    # ========================================================
 
     if current:
 
@@ -883,7 +1056,7 @@ def parse_transactions(
         )
 
     # ========================================================
-    # CLEAN EVERY COLUMN
+    # ENSURE ALL COLUMNS EXIST
     # ========================================================
 
     for column in COLUMNS:
@@ -925,13 +1098,24 @@ def parse_transactions(
         )
 
     # ========================================================
-    # TRANSACTION ID MUST STAY TEXT
+    # TRANSACTION ID
+    #
+    # Keep Transaction ID as TEXT.
+    #
+    # This prevents Excel from converting:
+    #
+    # 53679963045
+    #
+    # into:
+    #
+    # 5.3679963045E+10
     # ========================================================
 
     df["Transaction ID"] = (
         df["Transaction ID"]
         .fillna("")
         .astype(str)
+        .str.strip()
         .str.replace(
             r"\.0$",
             "",
@@ -942,37 +1126,67 @@ def parse_transactions(
     # ========================================================
     # TAX SAFETY
     #
-    # If PDF doesn't contain actual tax,
-    # it MUST remain 0.00.
+    # TAX WILL ALWAYS BE 0.00 IN THIS VERSION.
     #
-    # Never copy Amount into Tax.
+    # The parser will NOT copy:
+    #
+    # Amount -> Tax
+    # Receipts -> Tax
+    # Payments -> Tax
+    # Opening Balance -> Tax
+    # Closing Balance -> Tax
+    #
     # ========================================================
 
-    df["Tax"] = (
-        df["Tax"]
+    df["Tax"] = "0.00"
+
+    # ========================================================
+    # FEES SAFETY
+    # ========================================================
+
+    df["Fees"] = (
+        df["Fees"]
         .replace(
-            ["", "nan", "None"],
+            [
+                "",
+                "nan",
+                "None",
+            ],
             "0.00",
         )
     )
 
     # ========================================================
-    # FEES / DISCOUNT / TOTAL SAFETY
+    # DISCOUNT SAFETY
     # ========================================================
 
-    for column in [
-        "Fees",
-        "Discount",
-        "Total",
-    ]:
-
-        df[column] = (
-            df[column]
-            .replace(
-                ["", "nan", "None"],
-                "0.00",
-            )
+    df["Discount"] = (
+        df["Discount"]
+        .replace(
+            [
+                "",
+                "nan",
+                "None",
+            ],
+            "0.00",
         )
+    )
+
+    # ========================================================
+    # TOTAL SAFETY
+    # ========================================================
+
+    df["Total"] = (
+        df["Total"]
+        .replace(
+            [
+                "",
+                "nan",
+                "None",
+            ],
+            "0.00",
+        )
+    )
 
     # ========================================================
     # FINAL COLUMN ORDER
@@ -994,6 +1208,9 @@ def parse_transactions(
 def extract_transactions(
     uploaded_file,
 ) -> pd.DataFrame:
+    """
+    Main function called by app.py.
+    """
 
     text = pdf_to_text(
         uploaded_file
